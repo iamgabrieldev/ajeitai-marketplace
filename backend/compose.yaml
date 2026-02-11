@@ -1,0 +1,51 @@
+services:
+  postgres:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=keycloak_db'   # Ajustado para nome padrão
+      - 'POSTGRES_PASSWORD=secret'
+      - 'POSTGRES_USER=keycloak_user' # Ajustado para clareza
+    ports:
+      - '5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      # Removi o init script se não for estritamente necessário agora,
+      # mas você pode descomentar se tiver scripts SQL customizados.
+      # - ./postgres-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keycloak_user -d keycloak_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0 # Recomendo fixar versão para estabilidade
+    container_name: marketplace_auth
+    command:
+      - start-dev
+      # Flags cruciais para DESENVOLVIMENTO DE TEMA (Desabilita cache)
+      - --spi-theme-static-max-age=-1
+      - --spi-theme-cache-themes=false
+      - --spi-theme-cache-templates=false
+    environment:
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+      # Conexão com o Postgres (Sincronizado com o serviço acima)
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak_db
+      KC_DB_USERNAME: keycloak_user
+      KC_DB_PASSWORD: secret
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "8180:8080" # Atenção: Seu Keycloak rodará na porta 8180
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - keycloak_data:/opt/keycloak/data
+      # A MÁGICA DO TEMA: Mapeia sua pasta local para dentro do container
+      - ./themes:/opt/keycloak/themes
+
+volumes:
+  postgres_data:
+  keycloak_data:
