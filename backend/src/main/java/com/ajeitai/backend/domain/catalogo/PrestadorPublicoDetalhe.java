@@ -14,6 +14,8 @@ public record PrestadorPublicoDetalhe(
         BigDecimal valorServico,
         Double mediaAvaliacao,
         String avatarUrl,
-        List<PortfolioPublicoItem> portfolio
+        List<PortfolioPublicoItem> portfolio,
+        /** Keycloak ID do prestador; usado pelo chat interno para criar/buscar conversa. */
+        String keycloakId
 ) {
 }

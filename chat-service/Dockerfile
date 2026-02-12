@@ -9,6 +9,7 @@ FROM alpine:3.19
 RUN adduser -D app
 WORKDIR /app
 COPY --from=builder /chat-service .
+COPY --from=builder /app/migrations ./migrations
 USER app
 EXPOSE 8080
 CMD ["./chat-service"]

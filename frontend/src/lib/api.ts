@@ -203,6 +203,8 @@ export interface PrestadorDetalhe {
   totalAvaliacoes?: number;
   avatarUrl?: string;
   portfolio?: { id: number; titulo?: string; descricao?: string; imagemUrl?: string }[];
+  /** Keycloak ID do prestador; usado pelo chat interno. */
+  keycloakId?: string;
 }
 
 export const prestadoresApi = {
@@ -313,6 +315,8 @@ export interface Agendamento {
   id: string;
   clienteId?: string;
   prestadorId?: string;
+  /** Keycloak ID do prestador; usado pelo chat interno para criar conversa. */
+  prestadorKeycloakId?: string;
   dataHora: string;
   duracao?: number;
   /** Backend: PENDENTE | ACEITO | CONFIRMADO | REALIZADO | CANCELADO | RECUSADO */
@@ -411,7 +415,11 @@ export interface Avaliacao {
 
 export const avaliacoesApi = {
   criar: (token: string, data: { agendamentoId: string; nota: number; comentario?: string }) =>
-    request<Avaliacao>("/avaliacoes", { method: "POST", token, body: data }),
+    request<Avaliacao>(`/clientes/me/avaliacoes/${data.agendamentoId}`, {
+      method: "POST",
+      token,
+      body: { nota: data.nota, comentario: data.comentario },
+    }),
 
   listarPorPrestador: (token: string, prestadorId: string) =>
     request<Avaliacao[]>(`/avaliacoes/prestador/${prestadorId}`, {

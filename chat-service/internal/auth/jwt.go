@@ -10,10 +10,14 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+// KeycloakClaims compatível com o access token do Keycloak.
+// realm_access no Keycloak é um objeto { "roles": ["cliente", ...] }, não um array.
 type KeycloakClaims struct {
-	Sub               string   `json:"sub"`
-	RealmAccessRoles  []string `json:"realm_access"`
-	PreferredUsername string   `json:"preferred_username"`
+	Sub               string `json:"sub"`
+	RealmAccess       struct {
+		Roles []string `json:"roles"`
+	} `json:"realm_access"`
+	PreferredUsername string `json:"preferred_username"`
 	jwt.RegisteredClaims
 }
 

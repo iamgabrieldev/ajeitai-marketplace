@@ -1,6 +1,7 @@
 package com.ajeitai.backend.domain.agendamento;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.ajeitai.backend.domain.cliente.Cliente;
 import com.ajeitai.backend.domain.endereco.Endereco;
 import com.ajeitai.backend.domain.prestador.Prestador;
@@ -92,6 +93,16 @@ public class Agendamento {
     @Column(name = "foto_trabalho_url", length = 512)
     private String fotoTrabalhoUrl;
 
+    /** Preenchido na listagem do cliente: se pode abrir o fluxo de avaliação (REALIZADO, sem avaliação, dentro do prazo). */
+    @Transient
+    @JsonProperty("podeFazerAvaliacao")
+    private Boolean podeFazerAvaliacao;
+
+    /** Preenchido na listagem do cliente: id da avaliação já feita, ou null. */
+    @Transient
+    @JsonProperty("avaliacaoId")
+    private String avaliacaoId;
+
     @PrePersist
     public void prePersist() {
         if (criadoEm == null) {
@@ -134,5 +145,11 @@ public class Agendamento {
 
     public String getPrestadorNome() {
         return prestador != null ? prestador.getNomeFantasia() : null;
+    }
+
+    /** Keycloak ID do prestador; usado pelo chat interno (cliente abre conversa). */
+    @JsonProperty("prestadorKeycloakId")
+    public String getPrestadorKeycloakId() {
+        return prestador != null ? prestador.getKeycloakId() : null;
     }
 }

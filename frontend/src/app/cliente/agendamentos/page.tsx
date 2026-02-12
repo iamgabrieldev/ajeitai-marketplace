@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useAuth } from "@/providers/auth-provider";
-import { agendamentosApi, avaliacoesApi, type Agendamento } from "@/lib/api";
+import { agendamentosApi, avaliacoesApi, chatApi, type Agendamento, ApiError } from "@/lib/api";
 import { formatEndereco } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader } from "@/components/layout/page-header";
@@ -62,6 +63,10 @@ export default function AgendamentosPage() {
   const [confirmarPagamentoLoading, setConfirmarPagamentoLoading] = useState<string | null>(null);
   // Pagar agora (abrir link) — loading por agendamento
   const [pagarAgoraLoading, setPagarAgoraLoading] = useState<string | null>(null);
+  // Chat interno — loading por agendamento
+  const [chatLoading, setChatLoading] = useState<string | null>(null);
+
+  const router = useRouter();
 
   // Avaliação
   const [showAvaliacao, setShowAvaliacao] = useState(false);
@@ -145,6 +150,10 @@ export default function AgendamentosPage() {
   };
 
   const openAvaliacao = (ag: Agendamento) => {
+    if (ag.avaliacaoId) {
+      toast("Este serviço já foi avaliado.", "info");
+      return;
+    }
     setAvalAgendamento(ag);
     setAvalNota(5);
     setAvalComentario("");
@@ -155,16 +164,33 @@ export default function AgendamentosPage() {
     if (!token || !avalAgendamento) return;
     setAvalSending(true);
     try {
-      await avaliacoesApi.criar(token, {
+      const avaliacao = await avaliacoesApi.criar(token, {
         agendamentoId: avalAgendamento.id,
         nota: avalNota,
         comentario: avalComentario || undefined,
       });
       toast("Avaliação enviada com sucesso!", "success");
       setShowAvaliacao(false);
+      setAvalAgendamento(null);
+      // Atualização otimista: marca o agendamento como avaliado na lista
+      setAgendamentos((prev) =>
+        prev.map((ag) =>
+          ag.id === avalAgendamento.id
+            ? { ...ag, avaliacaoId: avaliacao?.id != null ? String(avaliacao.id) : "ok", podeFazerAvaliacao: false }
+            : ag
+        )
+      );
       fetchAgendamentos();
-    } catch {
-      toast("Erro ao enviar avaliação", "error");
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : "Erro ao enviar avaliação";
+      if (msg.includes("já foi avaliado")) {
+        toast("Este serviço já foi avaliado.", "info");
+        setShowAvaliacao(false);
+        setAvalAgendamento(null);
+        fetchAgendamentos();
+      } else {
+        toast(msg, "error");
+      }
     } finally {
       setAvalSending(false);
     }
@@ -317,22 +343,35 @@ export default function AgendamentosPage() {
                     </Button>
                   )}
 
-                  {/* WhatsApp */}
-                  {(isStatus(ag, "agendado") || isStatus(ag, "em_andamento")) && (
+                  {/* Chat interno */}
+                  {(isStatus(ag, "agendado") || isStatus(ag, "em_andamento") || isStatus(ag, "concluido")) && (
                     <Button
                       size="sm"
                       variant="outline"
                       icon={<MessageCircle className="h-4 w-4" />}
-                      onClick={() =>
-                        window.open(
-                          `https://wa.me/?text=${encodeURIComponent(
-                            `Olá! Sobre o agendamento do dia ${formatDate(ag.dataHora)}`
-                          )}`,
-                          "_blank"
-                        )
-                      }
+                      loading={chatLoading === ag.id}
+                      disabled={!ag.prestadorKeycloakId}
+                      onClick={async () => {
+                        if (!token || !ag.prestadorKeycloakId) {
+                          if (!ag.prestadorKeycloakId) toast("Chat indisponível para este agendamento.", "info");
+                          return;
+                        }
+                        setChatLoading(ag.id);
+                        try {
+                          const conv = await chatApi.criarOuBuscarConversa(
+                            token,
+                            ag.prestadorKeycloakId,
+                            ag.id
+                          );
+                          router.push(`/cliente/conversas/${conv.id}`);
+                        } catch (e) {
+                          toast(e instanceof ApiError ? e.message : "Erro ao abrir o chat.", "error");
+                        } finally {
+                          setChatLoading(null);
+                        }
+                      }}
                     >
-                      WhatsApp
+                      Chat
                     </Button>
                   )}
 
@@ -348,7 +387,15 @@ export default function AgendamentosPage() {
                     </Button>
                   )}
 
-                  {/* Avaliar — disponível em concluídos sem avaliação */}
+                  {/* Avaliado — oculta o botão e mostra badge */}
+                  {isStatus(ag, "concluido") && ag.avaliacaoId && (
+                    <div className="flex items-center gap-1.5 text-sm text-text-muted dark:text-text-dark-muted">
+                      <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                      <span className="font-medium text-green-600 dark:text-green-400">Avaliado</span>
+                    </div>
+                  )}
+
+                  {/* Avaliar — só em concluídos sem avaliação e dentro do prazo */}
                   {isStatus(ag, "concluido") &&
                     ag.podeFazerAvaliacao &&
                     !ag.avaliacaoId && (
@@ -361,10 +408,6 @@ export default function AgendamentosPage() {
                         Avaliar
                       </Button>
                     )}
-
-                  {ag.avaliacaoId && (
-                    <Badge variant="success">Avaliado</Badge>
-                  )}
                 </CardFooter>
               </Card>
             );

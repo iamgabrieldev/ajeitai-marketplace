@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Image from "next/image";
 import { useAuth } from "@/providers/auth-provider";
-import { prestadoresApi, agendamentosApi, type PrestadorDetalhe as PrestadorDetalheApi } from "@/lib/api";
+import { prestadoresApi, agendamentosApi, chatApi, type PrestadorDetalhe as PrestadorDetalheApi } from "@/lib/api";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,7 @@ interface PrestadorDetalhe {
   cidade?: string;
   telefone?: string;
   portfolio?: string[];
+  keycloakId?: string;
 }
 
 export default function PrestadorPerfilPage() {
@@ -44,6 +45,7 @@ export default function PrestadorPerfilPage() {
   const [prestador, setPrestador] = useState<PrestadorDetalhe | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAgendamento, setShowAgendamento] = useState(false);
+  const [chatLoading, setChatLoading] = useState(false);
   const { toast } = useToast();
   const [agendForm, setAgendForm] = useState({
     dataHora: "",
@@ -68,6 +70,7 @@ export default function PrestadorPerfilPage() {
         fotoUrl: data.avatarUrl,
         cidade: data.cidade,
         portfolio: (data.portfolio ?? []).map((p) => p.imagemUrl).filter(Boolean) as string[],
+        keycloakId: data.keycloakId,
       });
     } catch (err) {
       console.error("Erro ao buscar prestador:", err);
@@ -241,15 +244,25 @@ export default function PrestadorPerfilPage() {
             variant="outline"
             className="flex-1"
             icon={<MessageCircle className="h-5 w-5" />}
-            onClick={() =>
-              prestador.telefone &&
-              window.open(
-                `https://wa.me/${prestador.telefone?.replace(/\D/g, "")}`,
-                "_blank"
-              )
-            }
+            loading={chatLoading}
+            disabled={!prestador.keycloakId}
+            onClick={async () => {
+              if (!token || !prestador.keycloakId) {
+                if (!prestador.keycloakId) toast("Chat indisponível para este prestador.", "info");
+                return;
+              }
+              setChatLoading(true);
+              try {
+                const conv = await chatApi.criarOuBuscarConversa(token, prestador.keycloakId, undefined);
+                router.push(`/cliente/conversas/${conv.id}`);
+              } catch (e) {
+                toast(e instanceof Error ? e.message : "Erro ao abrir o chat.", "error");
+              } finally {
+                setChatLoading(false);
+              }
+            }}
           >
-            Mensagem
+            Chat
           </Button>
         </div>
 

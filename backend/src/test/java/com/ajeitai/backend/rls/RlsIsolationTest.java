@@ -4,6 +4,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
@@ -71,7 +72,7 @@ class RlsIsolationTest {
 
     @Test
     void cliente1EnxergaSomenteSeusAgendamentos() {
-        int count = jdbcTemplate.execute(con -> {
+        int count = jdbcTemplate.execute((ConnectionCallback<Integer>) con -> {
             try (var stmt = con.createStatement()) {
                 stmt.execute("RESET ALL");
                 stmt.execute("SET app.current_cliente_id = '1'");
@@ -87,7 +88,7 @@ class RlsIsolationTest {
 
     @Test
     void cliente2EnxergaSomenteSeusAgendamentos() {
-        int count = jdbcTemplate.execute(con -> {
+        int count = jdbcTemplate.execute((ConnectionCallback<Integer>) con -> {
             try (var stmt = con.createStatement()) {
                 stmt.execute("RESET ALL");
                 stmt.execute("SET app.current_cliente_id = '2'");
@@ -103,7 +104,7 @@ class RlsIsolationTest {
 
     @Test
     void prestador1EnxergaSomenteSeusAgendamentos() {
-        int count = jdbcTemplate.execute(con -> {
+        int count = jdbcTemplate.execute((ConnectionCallback<Integer>) con -> {
             try (var stmt = con.createStatement()) {
                 stmt.execute("RESET ALL");
                 stmt.execute("SET app.current_prestador_id = '1'");
@@ -119,7 +120,7 @@ class RlsIsolationTest {
 
     @Test
     void acessoSemContextoDeUsuarioNaoVêNada() {
-        int count = jdbcTemplate.execute(con -> {
+        int count = jdbcTemplate.execute((ConnectionCallback<Integer>) con -> {
             try (var stmt = con.createStatement()) {
                 stmt.execute("RESET ALL");
                 var rs = stmt.executeQuery("SELECT COUNT(*) FROM agendamentos");

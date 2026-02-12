@@ -72,7 +72,8 @@ public class CatalogoService {
                 prestador.getValorServico(),
                 media != null ? media : 0.0,
                 prestador.getAvatarUrl(),
-                portfolio
+                portfolio,
+                prestador.getKeycloakId()
         );
     }
 

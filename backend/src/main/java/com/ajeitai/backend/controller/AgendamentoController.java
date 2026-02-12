@@ -5,6 +5,7 @@ import com.ajeitai.backend.domain.agendamento.DadosAgendamento;
 import com.ajeitai.backend.domain.agendamento.DadosLocalizacao;
 import com.ajeitai.backend.domain.agendamento.StatusAgendamento;
 import com.ajeitai.backend.domain.pagamento.Pagamento;
+import com.ajeitai.backend.repository.AvaliacaoRepository;
 import com.ajeitai.backend.service.AgendamentoService;
 import com.ajeitai.backend.service.PagamentoService;
 import jakarta.validation.Valid;
@@ -17,6 +18,7 @@ import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +29,7 @@ public class AgendamentoController {
 
     private final AgendamentoService agendamentoService;
     private final PagamentoService pagamentoService;
+    private final AvaliacaoRepository avaliacaoRepository;
 
     @PostMapping
     @PreAuthorize("hasRole('cliente')")
@@ -50,6 +53,24 @@ public class AgendamentoController {
         List<Agendamento> agendamentos = statusEnum
                 .map(s -> agendamentoService.listarPorCliente(keycloakId, Optional.of(s)))
                 .orElseGet(() -> agendamentoService.listarPorCliente(keycloakId));
+        LocalDateTime agora = LocalDateTime.now();
+        for (Agendamento a : agendamentos) {
+            if (a.getStatus() != StatusAgendamento.REALIZADO) {
+                a.setPodeFazerAvaliacao(false);
+                a.setAvaliacaoId(null);
+                continue;
+            }
+            var avOpt = avaliacaoRepository.findByAgendamentoId(a.getId());
+            if (avOpt.isPresent()) {
+                a.setAvaliacaoId(String.valueOf(avOpt.get().getId()));
+                a.setPodeFazerAvaliacao(false);
+            } else {
+                LocalDateTime ref = a.getCheckoutEm() != null ? a.getCheckoutEm() : a.getDataHora();
+                boolean dentroPrazo = ref == null || ref.plusDays(7).isAfter(agora);
+                a.setPodeFazerAvaliacao(dentroPrazo);
+                a.setAvaliacaoId(null);
+            }
+        }
         return ResponseEntity.ok(agendamentos);
     }
 
@@ -161,8 +182,8 @@ public class AgendamentoController {
             @PathVariable Long id
     ) {
         String keycloakId = jwt.getSubject();
-        agendamentoService.buscarPorIdDoCliente(id, keycloakId);
-        Pagamento pagamento = pagamentoService.buscarPorAgendamento(id);
+        Agendamento agendamento = agendamentoService.buscarPorIdDoCliente(id, keycloakId);
+        Pagamento pagamento = pagamentoService.criarPagamento(agendamento);
         return ResponseEntity.ok(pagamento);
     }
 }

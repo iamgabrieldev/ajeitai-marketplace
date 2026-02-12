@@ -7,6 +7,7 @@ import com.ajeitai.backend.domain.avaliacao.DadosAvaliacao;
 import com.ajeitai.backend.domain.cliente.Cliente;
 import com.ajeitai.backend.domain.cliente.DadosAtualizacaoCliente;
 import com.ajeitai.backend.domain.cliente.DadosCadastroCliente;
+import com.ajeitai.backend.repository.AvaliacaoRepository;
 import com.ajeitai.backend.service.AgendamentoService;
 import com.ajeitai.backend.service.ArmazenamentoMidiaService;
 import com.ajeitai.backend.service.AvaliacaoService;
@@ -20,6 +21,7 @@ import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -32,6 +34,7 @@ public class ClienteController {
     private final ClienteService clienteService;
     private final AgendamentoService agendamentoService;
     private final AvaliacaoService avaliacaoService;
+    private final AvaliacaoRepository avaliacaoRepository;
     private final ArmazenamentoMidiaService armazenamentoMidiaService;
 
     @PostMapping("/vincular")
@@ -69,6 +72,24 @@ public class ClienteController {
     ) {
         String keycloakId = jwt.getSubject();
         List<Agendamento> agendamentos = agendamentoService.listarPorCliente(keycloakId, Optional.ofNullable(status));
+        LocalDateTime agora = LocalDateTime.now();
+        for (Agendamento a : agendamentos) {
+            if (a.getStatus() != StatusAgendamento.REALIZADO) {
+                a.setPodeFazerAvaliacao(false);
+                a.setAvaliacaoId(null);
+                continue;
+            }
+            var avOpt = avaliacaoRepository.findByAgendamentoId(a.getId());
+            if (avOpt.isPresent()) {
+                a.setAvaliacaoId(String.valueOf(avOpt.get().getId()));
+                a.setPodeFazerAvaliacao(false);
+            } else {
+                LocalDateTime ref = a.getCheckoutEm() != null ? a.getCheckoutEm() : a.getDataHora();
+                boolean dentroPrazo = ref == null || ref.plusDays(7).isAfter(agora);
+                a.setPodeFazerAvaliacao(dentroPrazo);
+                a.setAvaliacaoId(null);
+            }
+        }
         return ResponseEntity.ok(agendamentos);
     }
 

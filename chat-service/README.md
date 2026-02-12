@@ -1,6 +1,6 @@
 # Chat Service (Ajeitai)
 
-Microserviço de chat entre cliente e prestador. API REST + WebSocket, MongoDB, autenticação via JWT (Keycloak).
+Microserviço de chat entre cliente e prestador. API REST + WebSocket, PostgreSQL, autenticação via JWT (Keycloak).
 
 ## Endpoints
 
@@ -12,21 +12,31 @@ Microserviço de chat entre cliente e prestador. API REST + WebSocket, MongoDB, 
 
 ## Variáveis de ambiente
 
-- `MONGO_URI` — URI do MongoDB (default: `mongodb://localhost:27017`)
+- `DATABASE_URL` — URL do PostgreSQL (ex.: `postgres://user:pass@host:5432/ajeitai_db?sslmode=disable`). Em desenvolvimento: default `postgres://localhost:5432/ajeitai_db?sslmode=disable`.
 - `PORT` — Porta HTTP (default: 8080)
 
+A migração do schema (tabelas `conversas` e `mensagens`) é executada automaticamente na subida do serviço.
+
+## Requisitos
+
+- **Go 1.23** ([golang.org/dl](https://go.dev/dl/)).
+
 ## Build e execução
+
+Execute a partir do diretório `chat-service` para que o arquivo de migração seja encontrado:
 
 ```bash
 go mod tidy
 go run ./cmd/server
 ```
 
+Ou, a partir de `cmd/server`: `go run .` (o código tenta também `../../migrations/`).
+
 ## Docker
 
 ```bash
 docker build -t chat-service .
-docker run -p 8080:8080 -e MONGO_URI=mongodb://host.docker.internal:27017 chat-service
+docker run -p 8080:8080 -e DATABASE_URL=postgres://user:pass@host:5432/ajeitai_db?sslmode=disable chat-service
 ```
 
 ## Frontend

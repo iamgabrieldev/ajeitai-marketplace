@@ -3,21 +3,21 @@ package model
 import "time"
 
 type Conversa struct {
-	ID            string    `bson:"_id,omitempty" json:"id"`
-	ClienteID     string    `bson:"clienteId" json:"clienteId"`
-	PrestadorID   string    `bson:"prestadorId" json:"prestadorId"`
-	AgendamentoID string    `bson:"agendamentoId,omitempty" json:"agendamentoId,omitempty"`
-	CriadaEm      time.Time `bson:"criadaEm" json:"criadaEm"`
-	AtualizadaEm  time.Time `bson:"atualizadaEm" json:"atualizadaEm"`
+	ID            string    `json:"id" db:"id"`
+	ClienteID     string    `json:"clienteId" db:"cliente_id"`
+	PrestadorID   string    `json:"prestadorId" db:"prestador_id"`
+	AgendamentoID string    `json:"agendamentoId,omitempty" db:"agendamento_id"`
+	CriadaEm      time.Time `json:"criadaEm" db:"criada_em"`
+	AtualizadaEm  time.Time `json:"atualizadaEm" db:"atualizada_em"`
 }
 
 type Mensagem struct {
-	ID          string    `bson:"_id,omitempty" json:"id"`
-	ConversaID  string    `bson:"conversaId" json:"conversaId"`
-	RemetenteID string    `bson:"remetenteId" json:"remetenteId"`
-	Texto       string    `bson:"texto" json:"texto"`
-	EnviadaEm   time.Time `bson:"enviadaEm" json:"enviadaEm"`
-	Lida        bool      `bson:"lida" json:"lida"`
+	ID          string    `json:"id" db:"id"`
+	ConversaID  string    `json:"conversaId" db:"conversa_id"`
+	RemetenteID string    `json:"remetenteId" db:"remetente_id"`
+	Texto       string    `json:"texto" db:"texto"`
+	EnviadaEm   time.Time `json:"enviadaEm" db:"enviada_em"`
+	Lida        bool      `json:"lida" db:"lida"`
 }
 
 type CriarConversaRequest struct {

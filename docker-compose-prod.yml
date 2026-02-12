@@ -47,6 +47,27 @@ services:
       - "traefik.http.routers.keycloak.entrypoints=websecure"
       - "traefik.http.routers.keycloak.tls.certresolver=le"
 
+  # --- Chat (Go + PostgreSQL) ---
+  chat-service:
+    image: ghcr.io/${GITHUB_REPOSITORY}/chat-service:latest
+    environment:
+      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/ajeitai_db?sslmode=disable
+      PORT: "8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - internal
+      - web
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.chat.rule=Host(`${API_HOSTNAME}`) && PathPrefix(`/api/chat`)"
+      - "traefik.http.routers.chat.entrypoints=websecure"
+      - "traefik.http.routers.chat.tls.certresolver=le"
+      - "traefik.http.routers.chat.priority=10"
+      - "traefik.http.routers.chat.service=chat-service"
+      - "traefik.http.services.chat-service.loadbalancer.server.port=8080"
+
   # --- Backend (Spring Boot) ---
   backend:
     image: ghcr.io/${GITHUB_REPOSITORY}/backend:latest

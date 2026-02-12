@@ -1,6 +1,7 @@
 package com.ajeitai.backend.domain.pagamento;
 
 import com.ajeitai.backend.domain.agendamento.Agendamento;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -22,6 +23,7 @@ public class Pagamento {
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "agendamento_id", nullable = false, unique = true)
+    @JsonIgnore
     private Agendamento agendamento;
 
     @Enumerated(EnumType.STRING)
