@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { Briefcase, ArrowRight } from "lucide-react";
+import { Briefcase, ArrowRight, CreditCard, Loader2 } from "lucide-react";
 
 function onlyDigits(s: string) {
   return s.replace(/\D/g, "");
@@ -41,6 +41,8 @@ export default function PrestadorWelcomePage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(0);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [jaPagueiLoading, setJaPagueiLoading] = useState(false);
   const [form, setForm] = useState({
     nomeFantasia: "",
     telefone: "",
@@ -83,11 +85,40 @@ export default function PrestadorWelcomePage() {
     setLoading(true);
     try {
       await prestadoresApi.vincular(token, payload);
-      router.replace("/prestador/dashboard");
+      const resumo = await prestadoresApi.iniciarAssinatura(token);
+      if (resumo.status === "ATIVA" && resumo.dataFim) {
+        router.replace("/prestador/dashboard");
+        return;
+      }
+      setPaymentUrl(resumo.paymentUrl ?? null);
+      setStep(2);
     } catch (err) {
       console.error("Erro ao vincular prestador:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleJaPaguei = async () => {
+    if (!token) return;
+    setJaPagueiLoading(true);
+    try {
+      const resumo = await prestadoresApi.statusAssinatura(token);
+      if (resumo.status === "ATIVA") {
+        router.replace("/prestador/dashboard");
+        return;
+      }
+      // Tenta novamente após 2s (polling simples)
+      await new Promise((r) => setTimeout(r, 2000));
+      const novamente = await prestadoresApi.statusAssinatura(token);
+      if (novamente.status === "ATIVA") {
+        router.replace("/prestador/dashboard");
+        return;
+      }
+    } catch {
+      // ignora
+    } finally {
+      setJaPagueiLoading(false);
     }
   };
 
@@ -125,6 +156,46 @@ export default function PrestadorWelcomePage() {
           Começar cadastro
           <ArrowRight className="h-5 w-5" />
         </Button>
+      </div>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center px-6">
+        <div className="mb-8 flex flex-col items-center gap-4 text-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-3xl bg-primary/10">
+            <CreditCard className="h-10 w-10 text-primary" />
+          </div>
+          <h1 className="text-2xl font-bold text-text dark:text-text-dark">
+            Ative seu plano
+          </h1>
+          <p className="max-w-xs text-text-muted dark:text-text-dark-muted">
+            Para continuar atendendo no Ajeitai, ative sua assinatura mensal (R$ 15/mês).
+          </p>
+        </div>
+        <div className="flex w-full max-w-xs flex-col gap-3">
+          {paymentUrl && (
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={() => window.open(paymentUrl, "_blank")}
+              icon={<CreditCard className="h-5 w-5" />}
+            >
+              Pagar assinatura (PIX ou cartão)
+            </Button>
+          )}
+          <Button
+            size="lg"
+            variant="outline"
+            className="w-full"
+            loading={jaPagueiLoading}
+            onClick={handleJaPaguei}
+            icon={jaPagueiLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : undefined}
+          >
+            Já paguei
+          </Button>
+        </div>
       </div>
     );
   }

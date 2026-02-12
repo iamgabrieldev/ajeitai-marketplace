@@ -10,6 +10,10 @@ import com.ajeitai.backend.domain.prestador.DadosCadastroPrestador;
 import com.ajeitai.backend.domain.prestador.DashboardPrestador;
 import com.ajeitai.backend.domain.prestador.DocumentoPrestador;
 import com.ajeitai.backend.domain.prestador.Prestador;
+import com.ajeitai.backend.domain.financeiro.StatusAssinatura;
+import com.ajeitai.backend.service.AssinaturaService;
+import com.ajeitai.backend.service.SaqueService;
+import com.ajeitai.backend.domain.financeiro.SaquePrestador;
 import com.ajeitai.backend.domain.portfolio.PortfolioItem;
 import com.ajeitai.backend.service.ArmazenamentoDocumentoService;
 import com.ajeitai.backend.service.ArmazenamentoMidiaService;
@@ -42,6 +46,8 @@ public class PrestadorController {
     private final PrestadorService prestadorService;
     private final ArmazenamentoDocumentoService armazenamentoDocumentoService;
     private final ArmazenamentoMidiaService armazenamentoMidiaService;
+    private final AssinaturaService assinaturaService;
+    private final SaqueService saqueService;
     private final PortfolioService portfolioService;
     private final NotificacaoService notificacaoService;
 
@@ -54,6 +60,39 @@ public class PrestadorController {
         String email = jwt.getClaimAsString("email");
         Prestador prestador = prestadorService.vincular(keycloakId, email, dados);
         return ResponseEntity.ok(prestador);
+    }
+
+    @PostMapping("/me/assinatura")
+    public ResponseEntity<AssinaturaService.AssinaturaResumo> iniciarAssinatura(@AuthenticationPrincipal Jwt jwt) {
+        String keycloakId = jwt.getSubject();
+        var resumo = assinaturaService.iniciarOuRenovarAssinatura(keycloakId);
+        return ResponseEntity.ok(resumo);
+    }
+
+    @GetMapping("/me/assinatura")
+    public ResponseEntity<AssinaturaService.AssinaturaResumo> statusAssinatura(@AuthenticationPrincipal Jwt jwt) {
+        String keycloakId = jwt.getSubject();
+        var resumo = assinaturaService.obterStatusAssinatura(keycloakId);
+        return ResponseEntity.ok(resumo);
+    }
+
+    @GetMapping("/me/wallet")
+    public ResponseEntity<SaqueService.WalletResumo> resumoWallet(@AuthenticationPrincipal Jwt jwt) {
+        String keycloakId = jwt.getSubject();
+        return ResponseEntity.ok(saqueService.obterResumo(keycloakId));
+    }
+
+    @PostMapping("/me/saques")
+    public ResponseEntity<SaquePrestador> solicitarSaque(@AuthenticationPrincipal Jwt jwt) {
+        String keycloakId = jwt.getSubject();
+        SaquePrestador saque = saqueService.solicitarSaque(keycloakId);
+        return ResponseEntity.ok(saque);
+    }
+
+    @GetMapping("/me/saques")
+    public ResponseEntity<List<SaquePrestador>> listarSaques(@AuthenticationPrincipal Jwt jwt) {
+        String keycloakId = jwt.getSubject();
+        return ResponseEntity.ok(saqueService.listarSaques(keycloakId));
     }
 
     @GetMapping("/me")

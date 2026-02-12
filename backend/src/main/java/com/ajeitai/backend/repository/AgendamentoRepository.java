@@ -58,4 +58,10 @@ public interface AgendamentoRepository extends JpaRepository<Agendamento, Long> 
             @Param("fim") LocalDateTime fim,
             @Param("statuses") List<StatusAgendamento> statuses
     );
+
+    List<Agendamento> findByStatusAndDataHoraBefore(StatusAgendamento status, LocalDateTime dataHoraLimit);
+
+    long countByStatus(StatusAgendamento status);
+
+    List<Agendamento> findByStatusOrderByDataHoraDesc(StatusAgendamento status);
 }

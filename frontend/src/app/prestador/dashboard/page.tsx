@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/providers/auth-provider";
-import { dashboardApi, prestadoresApi, ApiError, type DashboardMetrics } from "@/lib/api";
+import { dashboardApi, prestadoresApi, ApiError, type DashboardMetrics, type WalletResumo } from "@/lib/api";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Card, CardContent } from "@/components/ui/card";
 import { StarRating } from "@/components/ui/star-rating";
@@ -25,8 +25,10 @@ interface PrestadorMe {
 export default function DashboardPage() {
   const { user, token } = useAuth();
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
+  const [wallet, setWallet] = useState<WalletResumo | null>(null);
   const [loading, setLoading] = useState(true);
   const [perfilIncompleto, setPerfilIncompleto] = useState(false);
+  const [saqueLoading, setSaqueLoading] = useState(false);
 
   const checkPerfil = useCallback(async () => {
     if (!token) return;
@@ -48,8 +50,12 @@ export default function DashboardPage() {
   const fetchMetrics = useCallback(async () => {
     if (!token) return;
     try {
-      const data = await dashboardApi.getMetrics(token);
-      setMetrics(data);
+      const [metricsData, walletData] = await Promise.all([
+        dashboardApi.getMetrics(token),
+        prestadoresApi.getWallet(token).catch(() => null),
+      ]);
+      setMetrics(metricsData);
+      setWallet(walletData ?? null);
     } catch (err) {
       console.error("Erro ao buscar métricas:", err);
     } finally {
@@ -60,6 +66,20 @@ export default function DashboardPage() {
   useEffect(() => {
     fetchMetrics();
   }, [fetchMetrics]);
+
+  const handleSolicitarSaque = useCallback(async () => {
+    if (!token || !wallet?.podeSolicitarSaque) return;
+    setSaqueLoading(true);
+    try {
+      await prestadoresApi.solicitarSaque(token);
+      const w = await prestadoresApi.getWallet(token);
+      setWallet(w);
+    } catch (err) {
+      console.error("Erro ao solicitar saque:", err);
+    } finally {
+      setSaqueLoading(false);
+    }
+  }, [token, wallet?.podeSolicitarSaque]);
 
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("pt-BR", {
@@ -124,6 +144,38 @@ export default function DashboardPage() {
                 {loading ? "..." : `${metrics?.trabalhosDoMes || 0} trabalhos`}
               </p>
             </div>
+          </div>
+        </Card>
+
+        {/* Saldo e saque */}
+        <Card className="mt-3 bg-white/10 backdrop-blur-sm dark:bg-white/5 dark:ring-white/10">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-white/70">Saldo disponível</p>
+              <p className="text-xl font-bold text-white">
+                {loading ? "..." : formatCurrency(wallet?.saldoDisponivel ?? 0)}
+              </p>
+              {wallet?.dataUltimoSaque && (
+                <p className="mt-1 text-xs text-white/60">
+                  Último saque: {new Date(wallet.dataUltimoSaque).toLocaleDateString("pt-BR")}
+                </p>
+              )}
+              {wallet && !wallet.podeSolicitarSaque && wallet.proximoSaqueDisponivelEm && (
+                <p className="mt-0.5 text-xs text-white/60">
+                  Próximo saque em: {new Date(wallet.proximoSaqueDisponivelEm).toLocaleDateString("pt-BR")}
+                </p>
+              )}
+            </div>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="bg-white/20 text-white hover:bg-white/30"
+              disabled={!wallet?.podeSolicitarSaque || saqueLoading}
+              loading={saqueLoading}
+              onClick={handleSolicitarSaque}
+            >
+              Solicitar saque
+            </Button>
           </div>
         </Card>
       </div>

@@ -11,6 +11,7 @@ import com.ajeitai.backend.domain.endereco.Endereco;
 import com.ajeitai.backend.domain.prestador.Prestador;
 import com.ajeitai.backend.repository.AgendamentoRepository;
 import com.ajeitai.backend.repository.DisponibilidadeRepository;
+import com.ajeitai.backend.repository.PagamentoRepository;
 import com.ajeitai.backend.repository.PrestadorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,7 +33,9 @@ class AgendamentoServiceTest {
     private PrestadorRepository prestadorRepository;
     private AgendamentoRepository agendamentoRepository;
     private DisponibilidadeRepository disponibilidadeRepository;
+    private PagamentoRepository pagamentoRepository;
     private PagamentoService pagamentoService;
+    private WalletService walletService;
     private NotificacaoPushService notificacaoPushService;
     private MensageriaService mensageriaService;
     private ArmazenamentoMidiaService armazenamentoMidiaService;
@@ -44,7 +47,9 @@ class AgendamentoServiceTest {
         prestadorRepository = mock(PrestadorRepository.class);
         agendamentoRepository = mock(AgendamentoRepository.class);
         disponibilidadeRepository = mock(DisponibilidadeRepository.class);
+        pagamentoRepository = mock(PagamentoRepository.class);
         pagamentoService = mock(PagamentoService.class);
+        walletService = mock(WalletService.class);
         notificacaoPushService = mock(NotificacaoPushService.class);
         mensageriaService = mock(MensageriaService.class);
         armazenamentoMidiaService = mock(ArmazenamentoMidiaService.class);
@@ -53,7 +58,9 @@ class AgendamentoServiceTest {
                 prestadorRepository,
                 agendamentoRepository,
                 disponibilidadeRepository,
+                pagamentoRepository,
                 pagamentoService,
+                walletService,
                 notificacaoPushService,
                 mensageriaService,
                 armazenamentoMidiaService

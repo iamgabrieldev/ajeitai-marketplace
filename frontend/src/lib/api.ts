@@ -45,7 +45,19 @@ async function request<T>(
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => null) as { message?: string; mensagem?: string } | null;
-    const message = errorData?.message ?? errorData?.mensagem ?? `Request failed with status ${response.status}`;
+    let message =
+      errorData?.message ??
+      errorData?.mensagem ??
+      `Request failed with status ${response.status}`;
+
+    if (response.status === 401) {
+      message = "Sua sessão expirou ou você não está autenticado.";
+    } else if (response.status === 402) {
+      message = message || "Sua assinatura está inativa. Regularize para continuar atendendo.";
+    } else if (response.status === 403) {
+      message = "Você não tem permissão para acessar este recurso.";
+    }
+
     throw new ApiError(response.status, message, errorData);
   }
 
@@ -234,7 +246,50 @@ export const prestadoresApi = {
     const query = params ? "?" + new URLSearchParams(params).toString() : "";
     return request<Agendamento[]>(`/prestadores/me/solicitacoes${query}`, { method: "GET", token });
   },
+
+  /** Assinatura: iniciar/gerar link de pagamento (POST /api/prestadores/me/assinatura). */
+  iniciarAssinatura: (token: string) =>
+    request<AssinaturaResumo>("/prestadores/me/assinatura", { method: "POST", token }),
+
+  /** Assinatura: status atual (GET /api/prestadores/me/assinatura). */
+  statusAssinatura: (token: string) =>
+    request<AssinaturaResumo>("/prestadores/me/assinatura", { method: "GET", token }),
+
+  /** Wallet: saldo, último saque, próximo saque disponível (GET /api/prestadores/me/wallet). */
+  getWallet: (token: string) =>
+    request<WalletResumo>("/prestadores/me/wallet", { method: "GET", token }),
+
+  /** Solicitar saque (POST /api/prestadores/me/saques). */
+  solicitarSaque: (token: string) =>
+    request<SaquePrestador>("/prestadores/me/saques", { method: "POST", token }),
+
+  /** Listar saques (GET /api/prestadores/me/saques). */
+  listarSaques: (token: string) =>
+    request<SaquePrestador[]>("/prestadores/me/saques", { method: "GET", token }),
 };
+
+export interface AssinaturaResumo {
+  status: string;
+  dataInicio?: string;
+  dataFim?: string;
+  paymentUrl?: string | null;
+}
+
+export interface WalletResumo {
+  saldoDisponivel: number;
+  dataUltimoSaque: string | null;
+  proximoSaqueDisponivelEm: string;
+  podeSolicitarSaque: boolean;
+}
+
+export interface SaquePrestador {
+  id: number;
+  valorSolicitado: number;
+  valorLiquido: number;
+  status: string;
+  solicitadoEm: string;
+  concluidoEm?: string | null;
+}
 
 // ─── Agendamentos ───
 
@@ -245,6 +300,13 @@ export interface EnderecoAgendamento {
   cidade?: string;
   uf?: string;
   cep?: string;
+}
+
+export interface PagamentoAgendamento {
+  id: number;
+  status: string;
+  linkPagamento?: string | null;
+  billingId?: string | null;
 }
 
 export interface Agendamento {
@@ -295,6 +357,10 @@ export const agendamentosApi = {
 
   cancelar: (token: string, id: string) =>
     request(`/agendamentos/${id}/cancelar`, { method: "PUT", token }),
+
+  /** Retorna o pagamento do agendamento (inclui linkPagamento para PIX/cartão). */
+  getPagamento: (token: string, id: string) =>
+    request<PagamentoAgendamento>(`/agendamentos/${id}/pagamento`, { method: "GET", token }),
 
   confirmarPagamento: (token: string, id: string) =>
     request(`/agendamentos/${id}/confirmar-pagamento`, { method: "PUT", token }),
@@ -494,6 +560,67 @@ export const chatApi = {
       token,
       body: { texto },
     }),
+};
+
+// ─── Admin ───
+
+export interface AdminVisaoGeral {
+  totalClientes: number;
+  totalPrestadores: number;
+  prestadoresComAssinaturaAtiva: number;
+  agendamentosPorStatus: Record<string, number>;
+  gmv: number;
+  receitaPlataforma: number;
+  pagamentosPendentes: number;
+  pagamentosConfirmados: number;
+}
+
+export interface AdminPrestador {
+  id: number;
+  nomeFantasia: string;
+  email?: string;
+  statusAssinatura: string | null;
+  dataFimAssinatura: string | null;
+  saldoDisponivel: number;
+}
+
+export interface AdminPagamento {
+  id: number;
+  agendamentoId: number | null;
+  status: string;
+  billingId: string | null;
+  criadoEm: string;
+  confirmadoEm: string | null;
+}
+
+export interface AdminSaque {
+  id: number;
+  prestadorId: number | null;
+  prestadorNome: string | null;
+  valorSolicitado: number;
+  valorLiquido: number;
+  status: string;
+  solicitadoEm: string;
+  concluidoEm: string | null;
+}
+
+export const adminApi = {
+  visaoGeral: (token: string) =>
+    request<AdminVisaoGeral>("/admin/visao-geral", { method: "GET", token }),
+
+  prestadores: (token: string) =>
+    request<AdminPrestador[]>("/admin/prestadores", { method: "GET", token }),
+
+  agendamentos: (token: string, status?: string) => {
+    const query = status ? `?status=${encodeURIComponent(status)}` : "";
+    return request<Agendamento[]>(`/admin/agendamentos${query}`, { method: "GET", token });
+  },
+
+  pagamentos: (token: string) =>
+    request<AdminPagamento[]>("/admin/pagamentos", { method: "GET", token }),
+
+  saques: (token: string) =>
+    request<AdminSaque[]>("/admin/saques", { method: "GET", token }),
 };
 
 export { ApiError };

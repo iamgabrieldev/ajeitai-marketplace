@@ -55,9 +55,18 @@ public class PagamentoService {
         return pagamentoRepository.save(pagamento);
     }
 
+
     public Pagamento buscarPorAgendamento(Long agendamentoId) {
         return pagamentoRepository.findByAgendamentoId(agendamentoId)
                 .orElseThrow(() -> new IllegalArgumentException("Pagamento não encontrado."));
+    }
+
+    @Transactional
+    public void cancelarPorAgendamento(Long agendamentoId) {
+        pagamentoRepository.findByAgendamentoId(agendamentoId).ifPresent(p -> {
+            p.setStatus(StatusPagamento.CANCELADO);
+            pagamentoRepository.save(p);
+        });
     }
 
     private StatusPagamento definirStatusInicial(FormaPagamento formaPagamento) {

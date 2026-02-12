@@ -1,5 +1,7 @@
 package com.ajeitai.backend.infra.security;
 
+import com.ajeitai.backend.infra.security.PrestadorAssinaturaFilter;
+import com.ajeitai.backend.service.AssinaturaService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -15,6 +17,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.server.resource.authentication.JwtAuthenticationConverter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -58,7 +61,7 @@ public class SecurityConfig {
 
     @Bean
     @Order(2)
-    public SecurityFilterChain filterChain(HttpSecurity http, Environment environment) throws Exception {
+    public SecurityFilterChain filterChain(HttpSecurity http, Environment environment, AssinaturaService assinaturaService) throws Exception {
         boolean isDev = environment.acceptsProfiles(Profiles.of("dev"));
 
         http
@@ -81,7 +84,9 @@ public class SecurityConfig {
                 })
                 .oauth2ResourceServer(oauth2 -> oauth2
                         .jwt(jwt -> jwt.jwtAuthenticationConverter(keycloakJwtConverter())) // <--- 2. CONVERSOR DE ROLES
-                );
+                )
+                .addFilterAfter(new UserContextFilter(), UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new PrestadorAssinaturaFilter(assinaturaService), UserContextFilter.class);
 
         if (isDev) {
             http.headers(headers -> headers.frameOptions(frame -> frame.disable()));

@@ -81,7 +81,7 @@ public class AbacatePayService {
 
         AbacatePayBillingRequest request = new AbacatePayBillingRequest(
                 AbacatePayBillingRequest.FREQUENCY_ONE_TIME,
-                List.of(AbacatePayBillingRequest.METHOD_PIX),
+                List.of(AbacatePayBillingRequest.METHOD_PIX, AbacatePayBillingRequest.METHOD_CREDIT_CARD),
                 List.of(product),
                 returnUrl,
                 completionUrl,
@@ -109,6 +109,77 @@ public class AbacatePayService {
             }
         } catch (Exception e) {
             log.error("Erro ao criar cobrança AbacatePay para agendamento {}", agendamento.getId(), e);
+        }
+        return null;
+    }
+
+    /**
+     * Cria uma cobrança (ONE_TIME) na AbacatePay para assinatura do prestador.
+     * Mesmo sendo mensal, o controle de recorrência fica do lado do Ajeitai,
+     * criando uma nova cobrança a cada ciclo.
+     */
+    public BillingResult createSubscriptionBilling(Prestador prestador, BigDecimal valor, String externalId) {
+        if (!properties.isEnabled()) {
+            log.warn("AbacatePay API key não configurada. Configure app.abacatepay.api-key para gerar links reais.");
+            return null;
+        }
+
+        if (valor == null || valor.compareTo(BigDecimal.ONE) < 0) {
+            valor = BigDecimal.valueOf(15);
+        }
+        int priceCents = valor.multiply(BigDecimal.valueOf(100)).intValue();
+        if (priceCents < 100) {
+            priceCents = 100;
+        }
+
+        String returnUrl = properties.getFrontendBaseUrl().replaceAll("/$", "") + "/prestador/dashboard";
+        String completionUrl = returnUrl;
+
+        AbacatePayBillingRequest.Product product = new AbacatePayBillingRequest.Product(
+                externalId,
+                "Assinatura Ajeitai",
+                "Assinatura mensal para anunciar na plataforma Ajeitai",
+                1,
+                priceCents
+        );
+
+        AbacatePayBillingRequest.Customer customer = new AbacatePayBillingRequest.Customer(
+                prestador.getNomeFantasia() != null ? prestador.getNomeFantasia() : "Prestador",
+                normalizarCelular(prestador.getTelefone()),
+                prestador.getEmail() != null ? prestador.getEmail() : "",
+                normalizarCpf(prestador.getCnpj())
+        );
+
+        AbacatePayBillingRequest request = new AbacatePayBillingRequest(
+                AbacatePayBillingRequest.FREQUENCY_ONE_TIME,
+                List.of(AbacatePayBillingRequest.METHOD_PIX, AbacatePayBillingRequest.METHOD_CREDIT_CARD),
+                List.of(product),
+                returnUrl,
+                completionUrl,
+                customer,
+                externalId,
+                null,
+                null
+        );
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(properties.getApiKey());
+
+        try {
+            ResponseEntity<AbacatePayBillingResponse> response = restTemplate.exchange(
+                    properties.getBaseUrl().replaceAll("/$", "") + BILLING_CREATE_PATH,
+                    HttpMethod.POST,
+                    new HttpEntity<>(request, headers),
+                    AbacatePayBillingResponse.class
+            );
+
+            if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null && response.getBody().data() != null) {
+                AbacatePayBillingResponse.Data data = response.getBody().data();
+                return new BillingResult(data.id(), data.url());
+            }
+        } catch (Exception e) {
+            log.error("Erro ao criar cobrança de assinatura AbacatePay para prestador {}", prestador.getId(), e);
         }
         return null;
     }

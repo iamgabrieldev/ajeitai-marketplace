@@ -1,28 +1,34 @@
-# Stage 1: build
-FROM node:20-alpine AS builder
-WORKDIR /app
+FROM node:20-alpine AS base
 
-COPY package.json package-lock.json* ./
+# Stage 1: Deps
+FROM base AS deps
+RUN apk add --no-cache libc6-compat
+WORKDIR /app
+COPY package.json package-lock.json ./
 RUN npm ci
 
+# Stage 2: Builder
+FROM base AS builder
+WORKDIR /app
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+ENV NEXT_TELEMETRY_DISABLED 1
 RUN npm run build
 
-# Stage 2: runtime (standalone)
-FROM node:20-alpine AS runner
+# Stage 3: Runner
+FROM base AS runner
 WORKDIR /app
-
-ENV NODE_ENV=production
-RUN addgroup -g 1000 node && adduser -u 1000 -G node -D node
+ENV NODE_ENV production
+ENV NEXT_TELEMETRY_DISABLED 1
+RUN addgroup --system --gid 1001 nodejs
+RUN adduser --system --uid 1001 nextjs
 
 COPY --from=builder /app/public ./public
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Copia a pasta standalone gerada pelo Next
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-USER node
-
+USER nextjs
 EXPOSE 3000
-ENV PORT=3000
-ENV HOSTNAME="0.0.0.0"
-
+ENV PORT 3000
 CMD ["node", "server.js"]

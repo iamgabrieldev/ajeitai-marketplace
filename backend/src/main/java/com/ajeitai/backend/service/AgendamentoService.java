@@ -10,11 +10,16 @@ import com.ajeitai.backend.domain.cliente.Cliente;
 import com.ajeitai.backend.domain.endereco.Endereco;
 import com.ajeitai.backend.domain.prestador.Prestador;
 import com.ajeitai.backend.domain.pagamento.Pagamento;
+import com.ajeitai.backend.domain.pagamento.StatusPagamento;
 import com.ajeitai.backend.repository.AgendamentoRepository;
 import com.ajeitai.backend.repository.DisponibilidadeRepository;
+import com.ajeitai.backend.repository.PagamentoRepository;
 import com.ajeitai.backend.repository.PrestadorRepository;
 import com.ajeitai.backend.service.ArmazenamentoMidiaService;
 import lombok.RequiredArgsConstructor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -28,11 +33,15 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class AgendamentoService {
 
+    private static final Logger log = LoggerFactory.getLogger(AgendamentoService.class);
+
     private final ClienteService clienteService;
     private final PrestadorRepository prestadorRepository;
     private final AgendamentoRepository agendamentoRepository;
     private final DisponibilidadeRepository disponibilidadeRepository;
+    private final PagamentoRepository pagamentoRepository;
     private final PagamentoService pagamentoService;
+    private final WalletService walletService;
     private final NotificacaoPushService notificacaoPushService;
     private final MensageriaService mensageriaService;
     private final ArmazenamentoMidiaService armazenamentoMidiaService;
@@ -181,14 +190,26 @@ public class AgendamentoService {
     public Agendamento confirmarPagamento(Long agendamentoId, String clienteKeycloakId) {
         Agendamento agendamento = buscarPorId(agendamentoId);
         validarCliente(agendamento, clienteKeycloakId);
-        pagamentoService.confirmarPagamento(agendamentoId);
+        if (agendamento.getStatus() != StatusAgendamento.ACEITO) {
+            throw new IllegalArgumentException("Somente agendamentos aceitos podem ter pagamento confirmado.");
+        }
+        Pagamento pagamento = pagamentoService.buscarPorAgendamento(agendamentoId);
+        if (pagamento.getStatus() == StatusPagamento.CONFIRMADO) {
+            return agendamento;
+        }
+        if (agendamento.getDataHora().isBefore(LocalDateTime.now().plusHours(1))) {
+            throw new IllegalArgumentException("O pagamento só pode ser confirmado até 1 hora antes do horário do atendimento.");
+        }
+        Pagamento pagamentoConfirmado = pagamentoService.confirmarPagamento(agendamentoId);
         agendamento.confirmar();
+        walletService.creditarPorPagamentoConfirmado(agendamento, pagamentoConfirmado);
         return agendamentoRepository.save(agendamento);
     }
 
     /**
      * Confirma pagamento pelo id do agendamento (usado pelo webhook AbacatePay).
      * Só altera estado se o agendamento estiver ACEITO e o pagamento ainda pendente.
+     * Credita o valor líquido (após 7%) na wallet do prestador.
      */
     @Transactional
     public void confirmarPagamentoPorIdAgendamento(Long agendamentoId) {
@@ -196,9 +217,30 @@ public class AgendamentoService {
         if (agendamento.getStatus() != StatusAgendamento.ACEITO) {
             return;
         }
-        pagamentoService.confirmarPagamento(agendamentoId);
+        Pagamento pagamento = pagamentoService.confirmarPagamento(agendamentoId);
         agendamento.confirmar();
         agendamentoRepository.save(agendamento);
+        walletService.creditarPorPagamentoConfirmado(agendamento, pagamento);
+    }
+
+    /**
+     * Cancela agendamentos ACEITOS com pagamento ainda PENDENTE quando faltar menos de 1h para o horário.
+     * Executado a cada 5 minutos.
+     */
+    @Scheduled(fixedRate = 300_000)
+    @Transactional
+    public void cancelarAgendamentosAceitosSemPagamentoComMenosDe1h() {
+        LocalDateTime limite = LocalDateTime.now().plusHours(1);
+        List<Agendamento> aceitos = agendamentoRepository.findByStatusAndDataHoraBefore(StatusAgendamento.ACEITO, limite);
+        for (Agendamento ag : aceitos) {
+            Optional<Pagamento> pagOpt = pagamentoRepository.findByAgendamentoId(ag.getId());
+            if (pagOpt.isPresent() && pagOpt.get().getStatus() == StatusPagamento.PENDENTE) {
+                ag.cancelar();
+                agendamentoRepository.save(ag);
+                pagamentoService.cancelarPorAgendamento(ag.getId());
+                log.info("Agendamento {} cancelado automaticamente (pagamento pendente com menos de 1h).", ag.getId());
+            }
+        }
     }
 
     @Transactional

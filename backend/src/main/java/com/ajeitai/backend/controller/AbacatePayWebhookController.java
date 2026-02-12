@@ -3,6 +3,7 @@ package com.ajeitai.backend.controller;
 import com.ajeitai.backend.integration.abacatepay.AbacatePayProperties;
 import com.ajeitai.backend.integration.abacatepay.AbacatePayWebhookPayload;
 import com.ajeitai.backend.service.AgendamentoService;
+import com.ajeitai.backend.service.AssinaturaService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +24,7 @@ public class AbacatePayWebhookController {
 
     private final AbacatePayProperties properties;
     private final AgendamentoService agendamentoService;
+    private final AssinaturaService assinaturaService;
 
     /**
      * AbacatePay chama esta URL com o secret em query: ?webhookSecret=xxx
@@ -57,19 +59,30 @@ public class AbacatePayWebhookController {
                 && !payload.data().billing().products().isEmpty()) {
             externalId = payload.data().billing().products().get(0).externalId();
         }
-        if (externalId == null || !externalId.startsWith("ag-")) {
-            log.warn("Webhook billing.paid sem externalId de agendamento: {}", payload);
+        if (externalId == null) {
+            log.warn("Webhook billing.paid sem externalId: {}", payload);
             return ResponseEntity.ok().build();
         }
 
         try {
-            long agendamentoId = Long.parseLong(externalId.substring(3));
-            agendamentoService.confirmarPagamentoPorIdAgendamento(agendamentoId);
-            log.info("Pagamento confirmado via webhook AbacatePay para agendamento {}", agendamentoId);
+            if (externalId.startsWith("ag-")) {
+                long agendamentoId = Long.parseLong(externalId.substring(3));
+                agendamentoService.confirmarPagamentoPorIdAgendamento(agendamentoId);
+                log.info("Pagamento confirmado via webhook AbacatePay para agendamento {}", agendamentoId);
+            } else if (externalId.startsWith("sub-")) {
+                long assinaturaId = Long.parseLong(externalId.substring(4));
+                String billingId = payload.data() != null && payload.data().billing() != null
+                        ? payload.data().billing().id()
+                        : null;
+                assinaturaService.processarPagamentoAssinatura(assinaturaId, billingId);
+                log.info("Pagamento de assinatura confirmado via webhook AbacatePay para assinatura {}", assinaturaId);
+            } else {
+                log.warn("Webhook billing.paid com externalId desconhecido: {}", externalId);
+            }
         } catch (NumberFormatException e) {
             log.warn("Webhook billing.paid com externalId inválido: {}", externalId);
         } catch (Exception e) {
-            log.error("Erro ao confirmar pagamento por webhook para externalId={}", externalId, e);
+            log.error("Erro ao processar billing.paid para externalId={}", externalId, e);
             return ResponseEntity.status(500).build();
         }
 

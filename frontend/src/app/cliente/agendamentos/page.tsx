@@ -60,6 +60,8 @@ export default function AgendamentosPage() {
 
   // Confirmar pagamento (loading por agendamento)
   const [confirmarPagamentoLoading, setConfirmarPagamentoLoading] = useState<string | null>(null);
+  // Pagar agora (abrir link) — loading por agendamento
+  const [pagarAgoraLoading, setPagarAgoraLoading] = useState<string | null>(null);
 
   // Avaliação
   const [showAvaliacao, setShowAvaliacao] = useState(false);
@@ -110,6 +112,35 @@ export default function AgendamentosPage() {
       toast(msg, "error");
     } finally {
       setConfirmarPagamentoLoading(null);
+    }
+  };
+
+  /** Menos de 1 hora até o horário do agendamento (pagamento deve ser feito antes). */
+  const menosDe1h = (dataHoraStr: string) => {
+    const ag = new Date(dataHoraStr).getTime();
+    const umaHora = 60 * 60 * 1000;
+    return ag - Date.now() < umaHora;
+  };
+
+  const handlePagarAgora = async (ag: Agendamento) => {
+    if (!token) return;
+    if (menosDe1h(ag.dataHora)) {
+      toast("Pagamento não disponível: faltam menos de 1 hora para o atendimento.", "error");
+      return;
+    }
+    setPagarAgoraLoading(ag.id);
+    try {
+      const pag = await agendamentosApi.getPagamento(token, ag.id);
+      if (pag?.linkPagamento) {
+        window.open(pag.linkPagamento, "_blank");
+      } else {
+        toast("Link de pagamento não disponível.", "error");
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Erro ao obter link de pagamento";
+      toast(msg, "error");
+    } finally {
+      setPagarAgoraLoading(null);
     }
   };
 
@@ -251,26 +282,38 @@ export default function AgendamentosPage() {
                 </CardContent>
 
                 <CardFooter className="flex-wrap">
-                  {/* Pagar (link) */}
-                  {ag.linkPagamento && isStatus(ag, "agendado") && (
-                    <Button
-                      size="sm"
-                      icon={<CreditCard className="h-4 w-4" />}
-                      onClick={() => window.open(ag.linkPagamento, "_blank")}
-                    >
-                      Pagar
-                    </Button>
+                  {/* Pagar agora — ACEITO + ONLINE: obtém link e abre; desabilitado se < 1h */}
+                  {(ag.status?.toUpperCase?.() ?? ag.status) === "ACEITO" &&
+                    ag.formaPagamento === "ONLINE" && (
+                    <>
+                      {menosDe1h(ag.dataHora) && (
+                        <p className="w-full text-xs text-amber-600 dark:text-amber-400">
+                          Pagamento indisponível: faltam menos de 1 hora para o atendimento.
+                        </p>
+                      )}
+                      <Button
+                        size="sm"
+                        icon={<CreditCard className="h-4 w-4" />}
+                        onClick={() => handlePagarAgora(ag)}
+                        loading={pagarAgoraLoading === ag.id}
+                        disabled={menosDe1h(ag.dataHora)}
+                      >
+                        Pagar agora
+                      </Button>
+                    </>
                   )}
 
                   {/* Confirmar pagamento — cliente informa que já pagou (ACEITO → CONFIRMADO) */}
                   {(ag.status?.toUpperCase?.() ?? ag.status) === "ACEITO" && (
                     <Button
                       size="sm"
+                      variant="outline"
                       icon={<CreditCard className="h-4 w-4" />}
                       onClick={() => handleConfirmarPagamento(ag.id)}
                       loading={confirmarPagamentoLoading === ag.id}
+                      disabled={menosDe1h(ag.dataHora)}
                     >
-                      Confirmar pagamento
+                      Já paguei
                     </Button>
                   )}
 

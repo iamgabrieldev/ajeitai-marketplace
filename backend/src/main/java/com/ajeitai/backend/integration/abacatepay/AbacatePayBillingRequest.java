@@ -21,6 +21,7 @@ public record AbacatePayBillingRequest(
 ) {
     public static final String FREQUENCY_ONE_TIME = "ONE_TIME";
     public static final String METHOD_PIX = "PIX";
+    public static final String METHOD_CREDIT_CARD = "CREDIT_CARD";
 
     public record Product(
             @JsonProperty("externalId") String externalId,
