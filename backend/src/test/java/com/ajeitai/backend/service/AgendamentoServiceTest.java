@@ -15,6 +15,8 @@ import com.ajeitai.backend.repository.PagamentoRepository;
 import com.ajeitai.backend.repository.PrestadorRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.CannotAcquireLockException;
 
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -39,6 +41,7 @@ class AgendamentoServiceTest {
     private NotificacaoPushService notificacaoPushService;
     private MensageriaService mensageriaService;
     private ArmazenamentoMidiaService armazenamentoMidiaService;
+    private ApplicationEventPublisher eventPublisher;
     private AgendamentoService agendamentoService;
 
     @BeforeEach
@@ -53,6 +56,7 @@ class AgendamentoServiceTest {
         notificacaoPushService = mock(NotificacaoPushService.class);
         mensageriaService = mock(MensageriaService.class);
         armazenamentoMidiaService = mock(ArmazenamentoMidiaService.class);
+        eventPublisher = mock(ApplicationEventPublisher.class);
         agendamentoService = new AgendamentoService(
                 clienteService,
                 prestadorRepository,
@@ -63,7 +67,8 @@ class AgendamentoServiceTest {
                 walletService,
                 notificacaoPushService,
                 mensageriaService,
-                armazenamentoMidiaService
+                armazenamentoMidiaService,
+                eventPublisher
         );
     }
 
@@ -86,7 +91,7 @@ class AgendamentoServiceTest {
         DadosAgendamento dados = new DadosAgendamento(prestador.getId(), dataHora, FormaPagamento.ONLINE, "Observacao");
 
         when(clienteService.buscarPorKeycloakId("cliente-1")).thenReturn(cliente);
-        when(prestadorRepository.findById(2L)).thenReturn(Optional.of(prestador));
+        when(prestadorRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(prestador));
         when(disponibilidadeRepository.findByPrestadorIdAndDiaSemanaOrderByHoraInicioAsc(eq(2L), any()))
                 .thenReturn(List.of(Disponibilidade.builder()
                         .prestador(prestador)
@@ -102,7 +107,7 @@ class AgendamentoServiceTest {
 
         assertThat(agendamento.getStatus()).isEqualTo(StatusAgendamento.PENDENTE);
         assertThat(agendamento.getFormaPagamento()).isEqualTo(FormaPagamento.ONLINE);
-        verify(notificacaoPushService).notificarNovoAgendamento(any());
+        verify(eventPublisher).publishEvent(any());
     }
 
     @Test
@@ -124,7 +129,7 @@ class AgendamentoServiceTest {
         DadosAgendamento dados = new DadosAgendamento(prestador.getId(), dataHora, FormaPagamento.ONLINE, "Obs");
 
         when(clienteService.buscarPorKeycloakId("cliente-1")).thenReturn(cliente);
-        when(prestadorRepository.findById(2L)).thenReturn(Optional.of(prestador));
+        when(prestadorRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(prestador));
 
         assertThatThrownBy(() -> agendamentoService.criar("cliente-1", dados))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -150,7 +155,7 @@ class AgendamentoServiceTest {
         DadosAgendamento dados = new DadosAgendamento(prestador.getId(), dataHora, FormaPagamento.ONLINE, "Obs");
 
         when(clienteService.buscarPorKeycloakId("cliente-1")).thenReturn(cliente);
-        when(prestadorRepository.findById(2L)).thenReturn(Optional.of(prestador));
+        when(prestadorRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(prestador));
         when(disponibilidadeRepository.findByPrestadorIdAndDiaSemanaOrderByHoraInicioAsc(eq(2L), any()))
                 .thenReturn(List.of(Disponibilidade.builder()
                         .prestador(prestador)
@@ -183,7 +188,7 @@ class AgendamentoServiceTest {
         DadosAgendamento dados = new DadosAgendamento(prestador.getId(), dataHora, FormaPagamento.ONLINE, "Obs");
 
         when(clienteService.buscarPorKeycloakId("cliente-1")).thenReturn(cliente);
-        when(prestadorRepository.findById(2L)).thenReturn(Optional.of(prestador));
+        when(prestadorRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(prestador));
         when(disponibilidadeRepository.findByPrestadorIdAndDiaSemanaOrderByHoraInicioAsc(eq(2L), any()))
                 .thenReturn(List.of(Disponibilidade.builder()
                         .prestador(prestador)
@@ -218,7 +223,7 @@ class AgendamentoServiceTest {
         DadosAgendamento dados = new DadosAgendamento(prestador.getId(), dataHora, FormaPagamento.ONLINE, null);
 
         when(clienteService.buscarPorKeycloakId("cliente-1")).thenReturn(cliente);
-        when(prestadorRepository.findById(2L)).thenReturn(Optional.of(prestador));
+        when(prestadorRepository.findByIdForUpdate(2L)).thenReturn(Optional.of(prestador));
 
         assertThatThrownBy(() -> agendamentoService.criar("cliente-1", dados))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -341,5 +346,31 @@ class AgendamentoServiceTest {
         assertThat(comCheckin.getCheckinEm()).isNotNull();
         assertThat(comCheckout.getCheckoutEm()).isNotNull();
         assertThat(comCheckout.getStatus()).isEqualTo(StatusAgendamento.REALIZADO);
+    }
+
+    @Test
+    void criarAgendamentoQuandoNaoConsegueLock_lancaErroDeConcorrencia() {
+        Cliente cliente = Cliente.builder()
+                .id(1L)
+                .keycloakId("cliente-1")
+                .nome("Cliente")
+                .email("cliente@teste.com")
+                .endereco(new Endereco("Rua A", "Bairro", "12345678", "10", null, "Cidade", "UF", -10.0, -10.0))
+                .build();
+        Prestador prestador = Prestador.builder()
+                .id(2L)
+                .keycloakId("prestador-1")
+                .nomeFantasia("Prestador")
+                .endereco(new Endereco("Rua B", "Bairro", "12345678", "20", null, "Cidade", "UF", -10.1, -10.1))
+                .build();
+        LocalDateTime dataHora = LocalDateTime.now().plusHours(2);
+        DadosAgendamento dados = new DadosAgendamento(prestador.getId(), dataHora, FormaPagamento.ONLINE, "Obs");
+
+        when(clienteService.buscarPorKeycloakId("cliente-1")).thenReturn(cliente);
+        when(prestadorRepository.findByIdForUpdate(2L)).thenThrow(new CannotAcquireLockException("lock"));
+
+        assertThatThrownBy(() -> agendamentoService.criar("cliente-1", dados))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("sendo agendado por outro cliente");
     }
 }

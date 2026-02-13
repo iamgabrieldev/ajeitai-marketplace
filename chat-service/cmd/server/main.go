@@ -14,6 +14,7 @@ import (
 	"github.com/ajeitai/chat-service/internal/repository"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
+	redis "github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -23,6 +24,19 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	redisAddr := os.Getenv("REDIS_ADDR")
+	if redisAddr == "" {
+		redisAddr = "redis:6379"
+	}
+	rdb := redis.NewClient(&redis.Options{
+		Addr: redisAddr,
+	})
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Fatal("conectar ao Redis: ", err)
+	}
+	defer rdb.Close()
+
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		log.Fatal("conectar ao Postgres: ", err)
@@ -35,7 +49,7 @@ func main() {
 
 	convRepo := repository.NewConversaRepo(pool)
 	msgRepo := repository.NewMensagemRepo(pool)
-	h := handler.New(convRepo, msgRepo)
+	h := handler.New(convRepo, msgRepo, rdb)
 
 	gin.SetMode(gin.ReleaseMode)
 	r := gin.New()

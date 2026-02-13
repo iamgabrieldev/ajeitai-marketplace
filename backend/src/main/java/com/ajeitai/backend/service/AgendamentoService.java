@@ -1,6 +1,7 @@
 package com.ajeitai.backend.service;
 
 import com.ajeitai.backend.domain.agendamento.Agendamento;
+import com.ajeitai.backend.domain.agendamento.AgendamentoCriadoEvent;
 import com.ajeitai.backend.domain.agendamento.Disponibilidade;
 import com.ajeitai.backend.domain.agendamento.DadosAgendamento;
 import com.ajeitai.backend.domain.agendamento.DadosLocalizacao;
@@ -15,10 +16,11 @@ import com.ajeitai.backend.repository.AgendamentoRepository;
 import com.ajeitai.backend.repository.DisponibilidadeRepository;
 import com.ajeitai.backend.repository.PagamentoRepository;
 import com.ajeitai.backend.repository.PrestadorRepository;
-import com.ajeitai.backend.service.ArmazenamentoMidiaService;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,71 +46,85 @@ public class AgendamentoService {
     private final WalletService walletService;
     private final NotificacaoPushService notificacaoPushService;
     private final MensageriaService mensageriaService;
-    private final ArmazenamentoMidiaService armazenamentoMidiaService;
+    private final ApplicationEventPublisher eventPublisher;
 
     @Transactional
     public Agendamento criar(String clienteKeycloakId, DadosAgendamento dados) {
-        Cliente cliente = clienteService.buscarPorKeycloakId(clienteKeycloakId);
-        Prestador prestador = prestadorRepository.findById(dados.prestadorId())
-                .orElseThrow(() -> new IllegalArgumentException("Prestador não encontrado."));
+        try {
+            Cliente cliente = clienteService.buscarPorKeycloakId(clienteKeycloakId);
+            Prestador prestador = prestadorRepository.findByIdForUpdate(dados.prestadorId())
+                    .orElseThrow(() -> new IllegalArgumentException("Prestador não encontrado."));
 
-        if (dados.dataHora().isBefore(LocalDateTime.now().plusMinutes(30))) {
-            throw new IllegalArgumentException("O agendamento deve ser criado com pelo menos 30 minutos de antecedência.");
+            if (dados.dataHora().isBefore(LocalDateTime.now().plusMinutes(30))) {
+                throw new IllegalArgumentException("O agendamento deve ser criado com pelo menos 30 minutos de antecedência.");
+            }
+
+            // Validação de cidade: cliente e prestador na mesma cidade
+            if (cliente.getEndereco() == null || prestador.getEndereco() == null) {
+                throw new IllegalArgumentException("Cliente e prestador devem possuir endereço cadastrado.");
+            }
+            String cidadeCliente = cliente.getEndereco().getCidade();
+            String cidadePrestador = prestador.getEndereco().getCidade();
+            if (cidadeCliente == null || !cidadeCliente.equalsIgnoreCase(cidadePrestador)) {
+                throw new IllegalArgumentException("O prestador não atende na cidade do cliente. Cidade do cliente: " + cidadeCliente);
+            }
+
+            // Validação de horário: dataHora deve cair em um slot de Disponibilidade do prestador
+            int diaSemana = dados.dataHora().getDayOfWeek().getValue(); // 1 = Segunda, 7 = Domingo
+            List<Disponibilidade> slots = disponibilidadeRepository.findByPrestadorIdAndDiaSemanaOrderByHoraInicioAsc(
+                    prestador.getId(), diaSemana);
+            boolean dentroDeAlgumSlot = slots.stream().anyMatch(d ->
+                    !dados.dataHora().toLocalTime().isBefore(d.getHoraInicio()) &&
+                            dados.dataHora().toLocalTime().isBefore(d.getHoraFim()));
+            if (slots.isEmpty() || !dentroDeAlgumSlot) {
+                throw new IllegalArgumentException("O horário escolhido não está dentro da disponibilidade do prestador.");
+            }
+
+            // Conflito: não pode haver outro agendamento ACEITO ou PENDENTE no mesmo horário para o mesmo prestador
+            boolean conflito = agendamentoRepository.existsByPrestadorIdAndDataHoraBetweenAndStatusIn(
+                    prestador.getId(),
+                    dados.dataHora(),
+                    dados.dataHora(),
+                    List.of(StatusAgendamento.PENDENTE, StatusAgendamento.ACEITO, StatusAgendamento.CONFIRMADO)
+            );
+            if (conflito) {
+                throw new IllegalArgumentException("Já existe um agendamento para este horário com o prestador.");
+            }
+
+            Endereco enderecoServico = cliente.getEndereco() != null
+                    ? new Endereco(cliente.getEndereco().getLogradouro(), cliente.getEndereco().getBairro(),
+                    cliente.getEndereco().getCep(), cliente.getEndereco().getNumero(),
+                    cliente.getEndereco().getComplemento(), cliente.getEndereco().getCidade(),
+                    cliente.getEndereco().getUf(), cliente.getEndereco().getLatitude(),
+                    cliente.getEndereco().getLongitude())
+                    : null;
+
+            Agendamento agendamento = Agendamento.builder()
+                    .cliente(cliente)
+                    .prestador(prestador)
+                    .dataHora(dados.dataHora())
+                    .status(StatusAgendamento.PENDENTE)
+                    .formaPagamento(dados.formaPagamento())
+                    .valorServico(prestador.getValorServico())
+                    .observacao(dados.observacao())
+                    .endereco(enderecoServico)
+                    .build();
+            Agendamento salvo = agendamentoRepository.save(agendamento);
+
+            AgendamentoCriadoEvent event = new AgendamentoCriadoEvent(
+                    salvo.getId(),
+                    salvo.getCliente().getId(),
+                    salvo.getPrestador().getId(),
+                    salvo.getDataHora()
+            );
+            eventPublisher.publishEvent(event);
+
+            return salvo;
+        } catch (CannotAcquireLockException e) {
+            log.warn("Não foi possível adquirir lock para criação de agendamento do prestador {} na data/hora {}",
+                    dados.prestadorId(), dados.dataHora(), e);
+            throw new IllegalStateException("O prestador está sendo agendado por outro cliente neste momento. Tente novamente em instantes.");
         }
-
-        // Validação de cidade: cliente e prestador na mesma cidade
-        if (cliente.getEndereco() == null || prestador.getEndereco() == null) {
-            throw new IllegalArgumentException("Cliente e prestador devem possuir endereço cadastrado.");
-        }
-        String cidadeCliente = cliente.getEndereco().getCidade();
-        String cidadePrestador = prestador.getEndereco().getCidade();
-        if (cidadeCliente == null || !cidadeCliente.equalsIgnoreCase(cidadePrestador)) {
-            throw new IllegalArgumentException("O prestador não atende na cidade do cliente. Cidade do cliente: " + cidadeCliente);
-        }
-
-        // Validação de horário: dataHora deve cair em um slot de Disponibilidade do prestador
-        int diaSemana = dados.dataHora().getDayOfWeek().getValue(); // 1 = Segunda, 7 = Domingo
-        List<Disponibilidade> slots = disponibilidadeRepository.findByPrestadorIdAndDiaSemanaOrderByHoraInicioAsc(
-                prestador.getId(), diaSemana);
-        boolean dentroDeAlgumSlot = slots.stream().anyMatch(d ->
-                !dados.dataHora().toLocalTime().isBefore(d.getHoraInicio()) &&
-                        dados.dataHora().toLocalTime().isBefore(d.getHoraFim()));
-        if (slots.isEmpty() || !dentroDeAlgumSlot) {
-            throw new IllegalArgumentException("O horário escolhido não está dentro da disponibilidade do prestador.");
-        }
-
-        // Conflito: não pode haver outro agendamento ACEITO ou PENDENTE no mesmo horário para o mesmo prestador
-        boolean conflito = agendamentoRepository.existsByPrestadorIdAndDataHoraBetweenAndStatusIn(
-                prestador.getId(),
-                dados.dataHora(),
-                dados.dataHora(),
-                List.of(StatusAgendamento.PENDENTE, StatusAgendamento.ACEITO, StatusAgendamento.CONFIRMADO)
-        );
-        if (conflito) {
-            throw new IllegalArgumentException("Já existe um agendamento para este horário com o prestador.");
-        }
-
-        Endereco enderecoServico = cliente.getEndereco() != null
-                ? new Endereco(cliente.getEndereco().getLogradouro(), cliente.getEndereco().getBairro(),
-                cliente.getEndereco().getCep(), cliente.getEndereco().getNumero(),
-                cliente.getEndereco().getComplemento(), cliente.getEndereco().getCidade(),
-                cliente.getEndereco().getUf(), cliente.getEndereco().getLatitude(),
-                cliente.getEndereco().getLongitude())
-                : null;
-
-        Agendamento agendamento = Agendamento.builder()
-                .cliente(cliente)
-                .prestador(prestador)
-                .dataHora(dados.dataHora())
-                .status(StatusAgendamento.PENDENTE)
-                .formaPagamento(dados.formaPagamento())
-                .valorServico(prestador.getValorServico())
-                .observacao(dados.observacao())
-                .endereco(enderecoServico)
-                .build();
-        Agendamento salvo = agendamentoRepository.save(agendamento);
-        notificacaoPushService.notificarNovoAgendamento(salvo);
-        return salvo;
     }
 
     public List<Agendamento> listarPorCliente(String clienteKeycloakId) {
