@@ -56,6 +56,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      rabbitmq:
+        condition: service_started
     networks:
       - internal
       - web
@@ -79,6 +81,8 @@ services:
       SPRING_DATA_MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/ajeitai_chat?authSource=admin
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
       KEYCLOAK_AUTH_SERVER_URL: https://${KC_HOSTNAME}
       KEYCLOAK_REALM: ${KC_REALM}
     depends_on:
@@ -87,6 +91,8 @@ services:
       mongodb:
         condition: service_started
       redis:
+        condition: service_started
+      rabbitmq:
         condition: service_started
     networks:
       - internal
@@ -143,13 +149,31 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: redis-server --requirepass ${REDIS_PASSWORD}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
     networks:
       - internal
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - internal
+    restart: always
 
 volumes:
   postgres_data:
   mongo_data:
+  redis_data:
+  rabbitmq_data:
 
 networks:
   web:
