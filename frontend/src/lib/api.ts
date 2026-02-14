@@ -328,6 +328,8 @@ export interface Agendamento {
   linkPagamento?: string;
   prestadorNome?: string;
   clienteNome?: string;
+  /** Valor do serviço do agendamento (backend: valorServico). */
+  valorServico?: number;
   /** Backend pode enviar string ou objeto com logradouro, numero, bairro, cidade, uf, cep */
   endereco?: string | EnderecoAgendamento;
   /** Backend retorna checkinEm / checkoutEm; aceitamos os dois nomes. */
