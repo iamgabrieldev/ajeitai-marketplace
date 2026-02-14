@@ -7,13 +7,13 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 
 export default function ClienteConversasPage() {
-  const { token, isAuthenticated } = useAuth();
+  const { token, authenticated } = useAuth();
   const [conversas, setConversas] = useState<ConversaChat[]>([]);
   const [loading, setLoading] = useState(true);
   const [erro, setErro] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !token) {
+    if (!authenticated || !token) {
       setLoading(false);
       return;
     }
@@ -22,7 +22,7 @@ export default function ClienteConversasPage() {
       .then(setConversas)
       .catch((e) => setErro(e.message || "Erro ao carregar conversas"))
       .finally(() => setLoading(false));
-  }, [isAuthenticated, token]);
+  }, [authenticated, token]);
 
   return (
     <>

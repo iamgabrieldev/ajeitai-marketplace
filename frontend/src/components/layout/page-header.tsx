@@ -9,6 +9,8 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   back?: boolean;
+  /** Custom left content (e.g. Link back to specific route). When set, overrides default back button. */
+  leftAction?: ReactNode;
   actions?: ReactNode;
   className?: string;
 }
@@ -17,6 +19,7 @@ export function PageHeader({
   title,
   subtitle,
   back = false,
+  leftAction,
   actions,
   className,
 }: PageHeaderProps) {
@@ -29,7 +32,7 @@ export function PageHeader({
         className
       )}
     >
-      {back && (
+      {leftAction ?? (back && (
         <button
           onClick={() => router.back()}
           className="flex h-9 w-9 items-center justify-center rounded-full text-text hover:bg-secondary-100 dark:text-text-dark dark:hover:bg-secondary-800"
@@ -37,7 +40,7 @@ export function PageHeader({
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
-      )}
+      ))}
       <div className="flex-1 min-w-0">
         <h1 className="truncate text-lg font-bold text-text dark:text-text-dark">
           {title}
