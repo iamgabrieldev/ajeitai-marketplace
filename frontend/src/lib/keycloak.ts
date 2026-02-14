@@ -10,7 +10,7 @@ export function getKeycloak(): Keycloak {
 
   if (!keycloakInstance) {
     keycloakInstance = new Keycloak({
-      url: process.env.NEXT_PUBLIC_KEYCLOAK_URL || "http://localhost:8080",
+      url: process.env.NEXT_PUBLIC_KEYCLOAK_URL || "https://auth.iamgabrieldev.com.br",
       realm: process.env.NEXT_PUBLIC_KEYCLOAK_REALM || "ajeitai",
       clientId: process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || "ajeitai-frontend",
     });
