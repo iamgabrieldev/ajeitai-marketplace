@@ -1,5 +1,5 @@
 services:
-  # --- Edge Router (HTTPS Automático) ---
+  # --- =) Edge Router (HTTPS Automático) ---
   traefik:
     image: traefik:v2.10
     command:
