@@ -47,6 +47,7 @@ public class AgendamentoService {
     private final NotificacaoPushService notificacaoPushService;
     private final MensageriaService mensageriaService;
     private final ApplicationEventPublisher eventPublisher;
+    private final ArmazenamentoMidiaService armazenamentoMidiaService;
 
     @Transactional
     public Agendamento criar(String clienteKeycloakId, DadosAgendamento dados) {

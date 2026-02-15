@@ -1,7 +1,8 @@
 services:
-  # --- =) Edge Router (HTTPS Automático) ---
   traefik:
-    image: traefik:v2.10
+    image: traefik:v2.11
+    environment:                      
+      - DOCKER_API_VERSION=1.44
     command:
       - "--api.insecure=false"
       - "--providers.docker=true"
@@ -24,10 +25,9 @@ services:
       - internal
     restart: always
 
-  # --- Identity Provider (Keycloak) ---
   keycloak:
     image: quay.io/keycloak/keycloak:23.0
-    command: start --optimized --hostname=${KC_HOSTNAME} --proxy=edge
+    command: start --hostname=${KC_HOSTNAME} --proxy=edge
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
@@ -46,31 +46,11 @@ services:
       - "traefik.http.routers.keycloak.rule=Host(`${KC_HOSTNAME}`)"
       - "traefik.http.routers.keycloak.entrypoints=websecure"
       - "traefik.http.routers.keycloak.tls.certresolver=le"
+      - "traefik.http.services.keycloak.loadbalancer.server.port=8080"
+    volumes:                                            # <--- ADICIONE ESTA LINHA
+      - ./backend/themes:/opt/keycloak/themes
 
-  # --- Chat (Go + PostgreSQL) ---
-  chat-service:
-    image: ghcr.io/${GITHUB_REPOSITORY}/chat-service:latest
-    environment:
-      DATABASE_URL: postgres://${DB_USER}:${DB_PASSWORD}@postgres:5432/ajeitai_db?sslmode=disable
-      PORT: "8080"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      rabbitmq:
-        condition: service_started
-    networks:
-      - internal
-      - web
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.chat.rule=Host(`${API_HOSTNAME}`) && PathPrefix(`/api/chat`)"
-      - "traefik.http.routers.chat.entrypoints=websecure"
-      - "traefik.http.routers.chat.tls.certresolver=le"
-      - "traefik.http.routers.chat.priority=10"
-      - "traefik.http.routers.chat.service=chat-service"
-      - "traefik.http.services.chat-service.loadbalancer.server.port=8080"
 
-  # --- Backend (Spring Boot) ---
   backend:
     image: ghcr.io/${GITHUB_REPOSITORY}/backend:latest
     environment:
@@ -78,7 +58,7 @@ services:
       SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/ajeitai_db
       SPRING_DATASOURCE_USERNAME: ${DB_USER}
       SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD}
-      SPRING_DATA_MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongodb:27017/ajeitai_chat?authSource=admin
+      SPRING_DATASOURCE_DRIVER_CLASS_NAME: org.postgresql.Driver
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       RABBITMQ_HOST: rabbitmq
@@ -88,8 +68,6 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      mongodb:
-        condition: service_started
       redis:
         condition: service_started
       rabbitmq:
@@ -103,7 +81,6 @@ services:
       - "traefik.http.routers.backend.entrypoints=websecure"
       - "traefik.http.routers.backend.tls.certresolver=le"
 
-  # --- Frontend (Next.js PWA) ---
   frontend:
     image: ghcr.io/${GITHUB_REPOSITORY}/frontend:latest
     environment:
@@ -119,7 +96,6 @@ services:
       - "traefik.http.routers.frontend.entrypoints=websecure"
       - "traefik.http.routers.frontend.tls.certresolver=le"
 
-  # --- Data Layer ---
   postgres:
     image: postgres:15-alpine
     environment:
@@ -128,7 +104,7 @@ services:
       POSTGRES_DB: ajeitai_db
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./backend/postgres-init:/docker-entrypoint-initdb.d # Seu script SQL inicial
+      - ./backend/postgres-init:/docker-entrypoint-initdb.d
     networks:
       - internal
     healthcheck:
@@ -136,16 +112,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-
-  mongodb:
-    image: mongo:6.0
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
-      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
-    volumes:
-      - mongo_data:/data/db
-    networks:
-      - internal
 
   redis:
     image: redis:7-alpine
@@ -158,8 +124,8 @@ services:
   rabbitmq:
     image: rabbitmq:3-management
     environment:
-      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-guest}
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:-guest}
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
     ports:
       - "5672:5672"
       - "15672:15672"
@@ -171,7 +137,6 @@ services:
 
 volumes:
   postgres_data:
-  mongo_data:
   redis_data:
   rabbitmq_data:
 

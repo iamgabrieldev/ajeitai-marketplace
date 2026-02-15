@@ -6,7 +6,7 @@ COPY mvnw .
 COPY .mvn .mvn
 COPY pom.xml .
 COPY src ./src
-RUN sed -i 's/\r$//' mvnw 2>/dev/null || true && chmod +x mvnw && ./mvnw package -DskipTests -B
+RUN sed -i 's/\r$//' mvnw 2>/dev/null || true && chmod +x mvnw && ./mvnw package -Dmaven.test.skip=true -B
 
 # Stage 2: runtime
 FROM eclipse-temurin:21-jre-alpine

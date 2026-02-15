@@ -13,6 +13,18 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
+
+ENV NEXT_PUBLIC_API_URL=https://api.iamgabrieldev.com.br
+ENV NEXT_PUBLIC_KEYCLOAK_URL=https://auth.iamgabrieldev.com.br
+ENV NEXT_PUBLIC_KEYCLOAK_REALM=ajeitai
+ENV NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=ajeitai-web
+
+RUN echo "NEXT_PUBLIC_API_URL=https://api.iamgabrieldev.com.br" > .env.production && \
+    echo "NEXT_PUBLIC_KEYCLOAK_URL=https://auth.iamgabrieldev.com.br" >> .env.production && \
+    echo "NEXT_PUBLIC_KEYCLOAK_REALM=ajeitai" >> .env.production && \
+    echo "NEXT_PUBLIC_KEYCLOAK_CLIENT_ID=ajeitai-web" >> .env.production && \
+    echo "NEXT_PUBLIC_CHAT_API_URL=https://api.iamgabrieldev.com.br/api/chat" >> .env.production
+
 RUN npm run build
 
 # Stage 3: Runner

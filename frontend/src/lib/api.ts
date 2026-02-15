@@ -154,7 +154,7 @@ export interface DadosCadastroPrestador {
 
 export const clientesApi = {
   vincular: (token: string, data: DadosCadastroCliente) =>
-    request("/clientes/vincular", { method: "POST", token, body: data }),
+    request("/api/clientes/vincular", { method: "POST", token, body: data }),
 
   getMe: (token: string) =>
     request("/clientes/me", { method: "GET", token }),
