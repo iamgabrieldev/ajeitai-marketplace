@@ -157,13 +157,13 @@ export const clientesApi = {
     request("/api/clientes/vincular", { method: "POST", token, body: data }),
 
   getMe: (token: string) =>
-    request("/clientes/me", { method: "GET", token }),
+    request("/api/clientes/me", { method: "GET", token }),
 
   updateMe: (token: string, data: Record<string, unknown>) =>
     request("/clientes/me", { method: "PUT", token, body: data }),
 
   uploadFoto: (token: string, file: File) =>
-    uploadFile("/clientes/me/avatar", file, token),
+    uploadFile("/api/clientes/me/avatar", file, token),
 };
 
 // ─── Prestadores (listagem paginada) ───
@@ -209,7 +209,7 @@ export interface PrestadorDetalhe {
 
 export const prestadoresApi = {
   vincular: (token: string, data: DadosCadastroPrestador) =>
-    request("/prestadores/vincular", { method: "POST", token, body: data }),
+    request("/api/prestadores/vincular", { method: "POST", token, body: data }),
 
   /**
    * Lista prestadores paginados (GET /api/prestadores).
@@ -235,39 +235,39 @@ export const prestadoresApi = {
     request<PrestadorDetalhe>(`/catalogo/prestadores/${id}`, { method: "GET", token }),
 
   getMe: (token: string) =>
-    request("/prestadores/me", { method: "GET", token }),
+    request("/api/prestadores/me", { method: "GET", token }),
 
   updateMe: (token: string, data: Record<string, unknown>) =>
     request("/prestadores/me", { method: "PUT", token, body: data }),
 
   uploadFoto: (token: string, file: File) =>
-    uploadFile("/prestadores/me/avatar", file, token),
+    uploadFile("/api/prestadores/me/avatar", file, token),
 
   /** Lista solicitações do prestador (GET /api/prestadores/me/solicitacoes). Params: status = PENDENTE | ACEITO | ... */
   solicitacoes: (token: string, params?: Record<string, string>) => {
     const query = params ? "?" + new URLSearchParams(params).toString() : "";
-    return request<Agendamento[]>(`/prestadores/me/solicitacoes${query}`, { method: "GET", token });
+    return request<Agendamento[]>(`/api/prestadores/me/solicitacoes${query}`, { method: "GET", token });
   },
 
   /** Assinatura: iniciar/gerar link de pagamento (POST /api/prestadores/me/assinatura). */
   iniciarAssinatura: (token: string) =>
-    request<AssinaturaResumo>("/prestadores/me/assinatura", { method: "POST", token }),
+    request<AssinaturaResumo>("/api/prestadores/me/assinatura", { method: "POST", token }),
 
   /** Assinatura: status atual (GET /api/prestadores/me/assinatura). */
   statusAssinatura: (token: string) =>
-    request<AssinaturaResumo>("/prestadores/me/assinatura", { method: "GET", token }),
+    request<AssinaturaResumo>("/api/prestadores/me/assinatura", { method: "GET", token }),
 
   /** Wallet: saldo, último saque, próximo saque disponível (GET /api/prestadores/me/wallet). */
   getWallet: (token: string) =>
-    request<WalletResumo>("/prestadores/me/wallet", { method: "GET", token }),
+    request<WalletResumo>("/api/prestadores/me/wallet", { method: "GET", token }),
 
   /** Solicitar saque (POST /api/prestadores/me/saques). */
   solicitarSaque: (token: string) =>
-    request<SaquePrestador>("/prestadores/me/saques", { method: "POST", token }),
+    request<SaquePrestador>("/api/prestadores/me/saques", { method: "POST", token }),
 
   /** Listar saques (GET /api/prestadores/me/saques). */
   listarSaques: (token: string) =>
-    request<SaquePrestador[]>("/prestadores/me/saques", { method: "GET", token }),
+    request<SaquePrestador[]>("/api/prestadores/me/saques", { method: "GET", token }),
 };
 
 export interface AssinaturaResumo {
@@ -345,41 +345,41 @@ export interface Agendamento {
 
 export const agendamentosApi = {
   criar: (token: string, data: Record<string, unknown>) =>
-    request<Agendamento>("/agendamentos", { method: "POST", token, body: data }),
+    request<Agendamento>("/api/agendamentos", { method: "POST", token, body: data }),
 
   listar: (token: string, params?: Record<string, string>) => {
     const query = params ? "?" + new URLSearchParams(params).toString() : "";
-    return request<Agendamento[]>(`/agendamentos${query}`, { method: "GET", token });
+    return request<Agendamento[]>(`/api/agendamentos${query}`, { method: "GET", token });
   },
 
   getById: (token: string, id: string) =>
-    request<Agendamento>(`/agendamentos/${id}`, { method: "GET", token }),
+    request<Agendamento>(`/api/agendamentos/${id}`, { method: "GET", token }),
 
   aceitar: (token: string, id: string) =>
-    request(`/agendamentos/${id}/aceitar`, { method: "PUT", token }),
+    request(`/api/agendamentos/${id}/aceitar`, { method: "PUT", token }),
 
   recusar: (token: string, id: string) =>
-    request(`/agendamentos/${id}/recusar`, { method: "PUT", token }),
+    request(`/api/agendamentos/${id}/recusar`, { method: "PUT", token }),
 
   cancelar: (token: string, id: string) =>
-    request(`/agendamentos/${id}/cancelar`, { method: "PUT", token }),
+    request(`/api/agendamentos/${id}/cancelar`, { method: "PUT", token }),
 
   /** Retorna o pagamento do agendamento (inclui linkPagamento para PIX/cartão). */
   getPagamento: (token: string, id: string) =>
-    request<PagamentoAgendamento>(`/agendamentos/${id}/pagamento`, { method: "GET", token }),
+    request<PagamentoAgendamento>(`/api/agendamentos/${id}/pagamento`, { method: "GET", token }),
 
   confirmarPagamento: (token: string, id: string) =>
-    request(`/agendamentos/${id}/confirmar-pagamento`, { method: "PUT", token }),
+    request(`/api/agendamentos/${id}/confirmar-pagamento`, { method: "PUT", token }),
 
   checkin: (token: string, id: string, lat: number, lng: number) =>
-    request(`/agendamentos/${id}/checkin`, {
+    request(`/api/agendamentos/${id}/checkin`, {
       method: "PUT",
       token,
       body: { latitude: lat, longitude: lng },
     }),
 
   checkout: (token: string, id: string, lat: number, lng: number) =>
-    request(`/agendamentos/${id}/checkout`, {
+    request(`/api/agendamentos/${id}/checkout`, {
       method: "PUT",
       token,
       body: { latitude: lat, longitude: lng },
@@ -417,14 +417,14 @@ export interface Avaliacao {
 
 export const avaliacoesApi = {
   criar: (token: string, data: { agendamentoId: string; nota: number; comentario?: string }) =>
-    request<Avaliacao>(`/clientes/me/avaliacoes/${data.agendamentoId}`, {
+    request<Avaliacao>(`/api/clientes/me/avaliacoes/${data.agendamentoId}`, {
       method: "POST",
       token,
       body: { nota: data.nota, comentario: data.comentario },
     }),
 
   listarPorPrestador: (token: string, prestadorId: string) =>
-    request<Avaliacao[]>(`/avaliacoes/prestador/${prestadorId}`, {
+    request<Avaliacao[]>(`/api/avaliacoes/prestador/${prestadorId}`, {
       method: "GET",
       token,
     }),
@@ -440,13 +440,13 @@ export interface Disponibilidade {
 
 export const disponibilidadeApi = {
   get: (token: string) =>
-    request<Disponibilidade[]>("/prestadores/me/disponibilidade", {
+    request<Disponibilidade[]>("/api/prestadores/me/disponibilidade", {
       method: "GET",
       token,
     }),
 
   update: (token: string, data: Disponibilidade[]) =>
-    request("/prestadores/me/disponibilidade", {
+    request("/api/prestadores/me/disponibilidade", {
       method: "PUT",
       token,
       body: data,
@@ -465,16 +465,16 @@ export interface Documento {
 
 export const documentosApi = {
   listar: (token: string) =>
-    request<Documento[]>("/prestadores/me/documentos", {
+    request<Documento[]>("/api/prestadores/me/documentos", {
       method: "GET",
       token,
     }),
 
   upload: (token: string, file: File) =>
-    uploadFile("/prestadores/me/documentos", file, token),
+    uploadFile("/api/prestadores/me/documentos", file, token),
 
   excluir: (token: string, id: string) =>
-    request(`/prestadores/me/documentos/${id}`, {
+    request(`/api/prestadores/me/documentos/${id}`, {
       method: "DELETE",
       token,
     }),
@@ -495,7 +495,7 @@ export interface DashboardMetrics {
 
 export const dashboardApi = {
   getMetrics: (token: string) =>
-    request<DashboardMetrics>("/prestadores/me/dashboard", {
+    request<DashboardMetrics>("/api/prestadores/me/dashboard", {
       method: "GET",
       token,
     }),
@@ -545,27 +545,27 @@ export interface MensagemChat {
 
 export const chatApi = {
   listarConversas: (token: string) =>
-    chatRequest<ConversaChat[]>("/conversas", { method: "GET", token }),
+    chatRequest<ConversaChat[]>("/api/conversas", { method: "GET", token }),
 
   criarOuBuscarConversa: (
     token: string,
     prestadorId: string,
     agendamentoId?: string
   ) =>
-    chatRequest<ConversaChat>("/conversas", {
+    chatRequest<ConversaChat>("/api/conversas", {
       method: "POST",
       token,
       body: { prestadorId, agendamentoId: agendamentoId || "" },
     }),
 
   listarMensagens: (token: string, conversaId: string) =>
-    chatRequest<MensagemChat[]>(`/conversas/${conversaId}/mensagens`, {
+    chatRequest<MensagemChat[]>(`/api/conversas/${conversaId}/mensagens`, {
       method: "GET",
       token,
     }),
 
   enviarMensagem: (token: string, conversaId: string, texto: string) =>
-    chatRequest<MensagemChat>(`/conversas/${conversaId}/mensagens`, {
+    chatRequest<MensagemChat>(`/api/conversas/${conversaId}/mensagens`, {
       method: "POST",
       token,
       body: { texto },
@@ -616,21 +616,21 @@ export interface AdminSaque {
 
 export const adminApi = {
   visaoGeral: (token: string) =>
-    request<AdminVisaoGeral>("/admin/visao-geral", { method: "GET", token }),
+    request<AdminVisaoGeral>("/api/admin/visao-geral", { method: "GET", token }),
 
   prestadores: (token: string) =>
-    request<AdminPrestador[]>("/admin/prestadores", { method: "GET", token }),
+    request<AdminPrestador[]>("/api/admin/prestadores", { method: "GET", token }),
 
   agendamentos: (token: string, status?: string) => {
     const query = status ? `?status=${encodeURIComponent(status)}` : "";
-    return request<Agendamento[]>(`/admin/agendamentos${query}`, { method: "GET", token });
+    return request<Agendamento[]>(`/api/admin/agendamentos${query}`, { method: "GET", token });
   },
 
   pagamentos: (token: string) =>
-    request<AdminPagamento[]>("/admin/pagamentos", { method: "GET", token }),
+    request<AdminPagamento[]>("/api/admin/pagamentos", { method: "GET", token }),
 
   saques: (token: string) =>
-    request<AdminSaque[]>("/admin/saques", { method: "GET", token }),
+    request<AdminSaque[]>("/api/admin/saques", { method: "GET", token }),
 };
 
 export { ApiError };
